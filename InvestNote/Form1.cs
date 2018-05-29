@@ -41,5 +41,10 @@ namespace InvestNote
         {
 
         }
+
+        private void toolStripSplitButton1_ButtonDoubleClick(object sender, EventArgs e)
+        {
+            NewAnalysis_Click(sender, e);
+        }
     }
 }

@@ -4,6 +4,9 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using Microsoft.VisualBasic;
+using Spire.Doc;
+using System.Text;
+using Spire.Doc.Documents;
 
 namespace InvestNote
 {
@@ -23,11 +26,11 @@ namespace InvestNote
             {
                 System.Environment.Exit(0);
             }
-            else if(MessageBox.Show("Are you sure?", "Save before exit", MessageBoxButtons.OKCancel) == DialogResult.OK)
+            else if(MessageBox.Show("Save before exit?","Attention",  MessageBoxButtons.OKCancel) == DialogResult.OK)
             {
+                tbTarget.Text = Interaction.InputBox("Please input target name", "Enter a name", "Default");
                 if (string.IsNullOrEmpty(tbTarget.Text))
                 {
-                    MessageBox.Show("Please input target name");
                     return;
                 }
                 Save_Click(sender, e);
@@ -42,7 +45,7 @@ namespace InvestNote
             {
                 System.Environment.Exit(0);
             }
-            else if(MessageBox.Show("Are you sure?","Exit without saving", MessageBoxButtons.OKCancel) == DialogResult.OK)
+            else if(MessageBox.Show("Exit without saving?","Attention", MessageBoxButtons.OKCancel) == DialogResult.OK)
             {
                 this.Close();
             }
@@ -69,7 +72,7 @@ namespace InvestNote
             if (string.IsNullOrEmpty(tbTarget.Text))
             {
                 //MessageBox.Show("Please input target name");
-                tbTarget.Text = Interaction.InputBox("Name", "Please input name for the analysis", "Default");
+                tbTarget.Text = Interaction.InputBox("Please input target name", "Enter a name", "Default");
                 if (string.IsNullOrEmpty(tbTarget.Text))
                 {
                     return;
@@ -80,10 +83,19 @@ namespace InvestNote
 
                 if (string.IsNullOrEmpty(currentFile))
                 {
-                    string path = tbTarget.Text + DateTime.Now.ToString("_yyyyMMddHHmmss") + ".rtf";
+                    string path = tbTarget.Text + DateTime.Now.ToString("_yyyyMMddHHmmss") + ".doc";
                     currentFile = GetOutputFilePath(path);
                 }
-                richTextBox1.SaveFile(currentFile);
+                var stream = new MemoryStream(Encoding.Unicode.GetBytes(richTextBox1.Rtf));
+                Document doc = new Document();
+
+                doc.LoadRtf(stream, Encoding.Unicode);
+                foreach(Section v in doc.Sections)
+                {
+                    v.PageSetup.PageSize = PageSize.A3;
+                    v.PageSetup.Orientation = PageOrientation.Landscape;
+                }
+                doc.SaveToFile(currentFile, FileFormat.Doc);
                 isDirty = false;
                 this.Text = this.Text.Trim('*');
                 toolStripStatusLabel1.Text = "File saved to "+currentFile;
@@ -92,6 +104,47 @@ namespace InvestNote
             {
                 MessageBox.Show(ex.Message);
             }
+        }
+
+        private void Open_Click(object sender, EventArgs e)
+        {
+            if (isDirty)
+            {
+                Save_Click(sender, e);
+                Open_Click(sender, e);
+            }
+            else
+            {
+                OpenFileDialog ofd = new OpenFileDialog
+                {
+                    Filter = @"Rtf File|*.doc",
+                    Title = @"Please choose an doc file",
+                    RestoreDirectory = true
+                };
+
+                ofd.Multiselect = false;
+
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    tbTarget.Text = Path.GetFileName(ofd.FileName).Replace(".doc","");
+                    Document doc = new Document();
+                    doc.LoadFromFile(ofd.FileName, FileFormat.Doc);
+                    string tmp = string.Format("{0}.rtf", Guid.NewGuid().ToString());
+                    doc.SaveToFile(tmp, FileFormat.Rtf);
+                    richTextBox1.LoadFile(tmp);
+                    File.Delete(tmp);
+
+                    currentFile = ofd.FileName;
+                    isDirty = false;
+                    this.Text = this.Text.Trim('*');
+                }
+            }
+        }
+private void SaveAsDoc(string path) {
+            Document document = new Document();
+            document.LoadFromFile(path, FileFormat.Rtf);
+            document.SaveToFile(path.Replace(".rtf", ".doc"), FileFormat.Doc);
+            File.Delete(path);
         }
 
         private string GetOutputFilePath(string str) {
@@ -109,21 +162,28 @@ namespace InvestNote
 
         private void PeriodButton_Click(object sender, EventArgs e)
         {
-            string str = string.Format("----{0}-{0}-{0}-{0}-{0}-{0}-{0}-{0}-{0}----\n",sender.ToString());
-            richTextBox1.AppendText(str);
+            Clipboard.SetData("Text", string.Format("------Analysis for period {0}------\n", sender.ToString()));
+            richTextBox1.Paste();
         }
 
         private void Config_Click(object sender, EventArgs e)
         {
             Configuration config = ConfigurationManager.OpenExeConfiguration(Application.ExecutablePath);
-            FolderBrowserDialog dilog = new FolderBrowserDialog();
-            dilog.Description = "Select a folder";
+            FolderBrowserDialog dialog = new FolderBrowserDialog();
+            if (!string.IsNullOrEmpty(config.AppSettings.Settings["DestDirectory"].Value)) {
+                dialog.SelectedPath = config.AppSettings.Settings["DestDirectory"].Value;
+            }
+            dialog.Description = "Select a folder";
             try
             {
-                if (dilog.ShowDialog() == DialogResult.OK || dilog.ShowDialog() == DialogResult.Yes)
+                if (dialog.ShowDialog() == DialogResult.OK || dialog.ShowDialog() == DialogResult.Yes)
                 {
-                    config.AppSettings.Settings["DestDirectory"].Value= dilog.SelectedPath;
+                    config.AppSettings.Settings["DestDirectory"].Value= dialog.SelectedPath;
                     config.Save(ConfigurationSaveMode.Modified);
+                    if (!string.IsNullOrEmpty(currentFile))
+                    {
+                        currentFile = Path.Combine(dialog.SelectedPath, Path.GetFileName(currentFile));
+                    }
                 }
             }
             catch (Exception ex)
@@ -155,45 +215,24 @@ namespace InvestNote
             }
         }
 
-        private void Open_Click(object sender, EventArgs e)
+        
+        private void ClearAll_Click(object sender, EventArgs e)
         {
-            if (isDirty)
-            {
-                Save_Click(sender, e);
-                Open_Click(sender, e);
+            if (isDirty) {
+                return;
             }
             else
             {
-                OpenFileDialog ofd = new OpenFileDialog
+                if (MessageBox.Show("Empty the content without saving?", "Attention", MessageBoxButtons.OKCancel) == DialogResult.OK)
                 {
-                    Filter = @"Rtf File|*.rtf",
-                    Title = @"Please choose an rtf file",
-                    RestoreDirectory = true
-                };
-
-                ofd.Multiselect = false;
-
-                if (ofd.ShowDialog() == DialogResult.OK)
-                {
-                    richTextBox1.LoadFile(ofd.FileName);
-                    currentFile = ofd.FileName;
-                    isDirty = false;
-                    this.Text = this.Text.Trim('*');
+                    richTextBox1.Clear();
                 }
-            }
-        }
-
-        private void ClearAll_Click(object sender, EventArgs e)
-        {
-            if(MessageBox.Show("Empty the content without saving?","Are you sure", MessageBoxButtons.OKCancel) == DialogResult.OK)
-            {
-                richTextBox1.Clear();
             }
         }
 
         private void tbTarget_TextChanged(object sender, EventArgs e)
         {
-            string path = tbTarget.Text + DateTime.Now.ToString("_yyyyMMddHHmmss") + ".rtf";
+            string path = tbTarget.Text + DateTime.Now.ToString("_yyyyMMddHHmmss") + ".doc";
             currentFile = GetOutputFilePath(path);
         }
     }

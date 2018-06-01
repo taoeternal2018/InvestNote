@@ -123,6 +123,7 @@ namespace InvestNote
                 };
 
                 ofd.Multiselect = false;
+                ofd.InitialDirectory = ConfigurationManager.AppSettings["DestDirectory"].ToString();
 
                 if (ofd.ShowDialog() == DialogResult.OK)
                 {
@@ -140,13 +141,6 @@ namespace InvestNote
                 }
             }
         }
-private void SaveAsDoc(string path) {
-            Document document = new Document();
-            document.LoadFromFile(path, FileFormat.Rtf);
-            document.SaveToFile(path.Replace(".rtf", ".doc"), FileFormat.Doc);
-            File.Delete(path);
-        }
-
         private string GetOutputFilePath(string str) {
             string dir = ConfigurationManager.AppSettings["DestDirectory"];
             try
@@ -162,8 +156,7 @@ private void SaveAsDoc(string path) {
 
         private void PeriodButton_Click(object sender, EventArgs e)
         {
-            Clipboard.SetData("Text", string.Format("------Analysis for period {0}------\n", sender.ToString()));
-            richTextBox1.Paste();
+            richTextBox1.SelectedText = string.Format("------Analysis for period {0}------\n", sender.ToString());
         }
 
         private void Config_Click(object sender, EventArgs e)
@@ -176,7 +169,7 @@ private void SaveAsDoc(string path) {
             dialog.Description = "Select a folder";
             try
             {
-                if (dialog.ShowDialog() == DialogResult.OK || dialog.ShowDialog() == DialogResult.Yes)
+                if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     config.AppSettings.Settings["DestDirectory"].Value= dialog.SelectedPath;
                     config.Save(ConfigurationSaveMode.Modified);
@@ -203,6 +196,9 @@ private void SaveAsDoc(string path) {
             else
             {
                 richTextBox1.Clear();
+                tbTarget.Text = "";
+                isDirty = false;
+                this.Text = this.Text.Trim('*');
             }
         }
 
